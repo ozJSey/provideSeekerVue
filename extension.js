@@ -198,6 +198,11 @@ const handleProvideSeeker = async (document) => {
 const activate = async (context) => {
   vueFilesList = await getAllVueFiles();
   const watcher = vscode.workspace.createFileSystemWatcher("**/*.vue", false, false, false);
+  const { activeTextEditor } = vscode.window;
+  if (activeTextEditor?.document.languageId === "vue") {
+    handleProvideSeeker(activeTextEditor.document);
+  }
+
   watcher.onDidCreate((uri) => {
     if (!vueFilesList.includes(uri.fsPath)) {
       vueFilesList.push(uri.fsPath);
@@ -211,19 +216,19 @@ const activate = async (context) => {
   watcher.onDidChange((uri) => {
     invalidateFileCaches(uri.fsPath);
   });
-  const { activeTextEditor } = vscode.window;
-  if (activeTextEditor?.document.languageId === "vue") {
-    handleProvideSeeker(activeTextEditor.document);
-  }
-  vscode.workspace.onDidOpenTextDocument((doc) => {
-    if (doc.languageId === "vue") {
-      handleProvideSeeker(doc);
-    }
-  });
-  vscode.window.onDidChangeActiveTextEditor((editor) => {
-    if (editor?.document.languageId === "vue") {
-      handleProvideSeeker(editor.document);
-    }
+  
+  vscode.window.onDidChangeVisibleTextEditors((editors) => {
+    
+    editors.forEach(editor => {
+      if (editor?.document.languageId === 'vue') {
+        const filePath = editor.document.uri.fsPath;
+    
+        invalidateFileCaches(filePath);
+        handleProvideSeeker(editor.document);
+      }
+    })
+  
+    
   });
 };
 
