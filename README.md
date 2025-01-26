@@ -1,4 +1,4 @@
-# Vue Provide Hover Extension
+# Vue Provide Extension
 
 ![Extension Icon](assets/icon.png)
 
