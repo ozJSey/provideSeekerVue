@@ -2,26 +2,17 @@ const vscode = require("vscode");
 const path = require("path");
 const fs = require("fs");
 
-/**
- * Regex Definitions
- */
-const RX_VUE_SCRIPT_BLOCK = /<script[^>]*>([\s\S]*?)<\/script>/g; // Capture ALL <script> blocks
-const RX_IMPORT_STATEMENTS = /import\s+(\{?\s*[\w,\s]+\}?)\s+from\s+['"][^'"]+['"]/g; // Matches import statements in script
-const RX_PROVIDE_CAPTURE = /provide\s*\(\s*([\s\S]*?)\s*\)/g; // Captures the content inside provide(...)
-const RX_PROVIDE_BLOCK = /provide\s*\(\s*[\s\S]*?\s*\)/g; // Matches entire provide(...) blocks
-const RX_OBJECT_PAIRS = /(['"]?[\w]+['"]?)\s*:\s*(['"]?[\w\s]+['"]?)|(['"]?[\w]+['"]?)(?=\s*[},])/g; // Matches key-value pairs within an object
+const RX_VUE_SCRIPT_BLOCK = /<script[^>]*>([\s\S]*?)<\/script>/g;
+const RX_IMPORT_STATEMENTS = /import\s+(\{?\s*[\w,\s]+\}?)\s+from\s+['"][^'"]+['"]/g;
+const RX_PROVIDE_CAPTURE = /provide\s*\(\s*([\s\S]*?)\s*\)/g;
+const RX_PROVIDE_BLOCK = /provide\s*\(\s*[\s\S]*?\s*\)/g;
+const RX_OBJECT_PAIRS = /(['"]?[\w]+['"]?)\s*:\s*(['"]?[\w\s]+['"]?)|(['"]?[\w]+['"]?)(?=\s*[},])/g;
 
-/**
- * Caches & Globals
- */
 const fileContentCache = new Map();
 const parentsCache = new Map();
 const providesCache = new Map();
 let vueFilesList = [];
 
-/**
- * Helper functions
- */
 const _stripQuotes = (s = "") => s.replace(/^['"]|['"]$/g, "");
 
 const _readFile = (filePath) =>
@@ -33,7 +24,6 @@ const _extractScriptContent = (fileContent = "") => {
   const scriptMatches = fileContent.matchAll(RX_VUE_SCRIPT_BLOCK);
   let combinedScript = "";
   for (const match of scriptMatches) {
-    // match[1] is the script block content
     combinedScript += match[1] + "\n";
   }
   return combinedScript;
@@ -73,7 +63,6 @@ const _formatSingleProvideKV = (inner) => {
 const _extractProvideContent = (str = "") => {
   const matches = [...str.matchAll(RX_PROVIDE_CAPTURE)];
   if (!matches.length) return "- *(Non-valid provide syntax found)*";
-
   const results = matches.flatMap((match) => {
     const inner = (match[1] || "").trim();
     if (inner.startsWith("{")) {
@@ -85,7 +74,6 @@ const _extractProvideContent = (str = "") => {
     }
     return _formatSingleProvideKV(inner);
   });
-
   return results.length ? results.join("\n\n") : "- *(Non-valid provide syntax found)*";
 };
 
@@ -97,18 +85,13 @@ const _generateHoverContent = (parents) => {
       return `**Provides:**\n${parsed || "(no values)"}\n\n${name}\n*(at ${source})*`;
     }),
   ];
-
   const md = new vscode.MarkdownString(lines.join("\n\n---\n\n"));
   md.isTrusted = true;
   return md;
 };
 
-/**
- * Cache retrieval and storing
- */
 const _getFileContent = async (filePath) => {
   if (fileContentCache.has(filePath)) return fileContentCache.get(filePath);
-
   try {
     const data = await _readFile(filePath);
     fileContentCache.set(filePath, data);
@@ -121,13 +104,11 @@ const _getFileContent = async (filePath) => {
 
 const _getFileProvides = async (filePath) => {
   if (providesCache.has(filePath)) return providesCache.get(filePath);
-
   const content = await _getFileContent(filePath);
   if (!content.includes("provide")) {
     providesCache.set(filePath, []);
     return [];
   }
-
   const matches = [...content.matchAll(RX_PROVIDE_BLOCK)].map((m) => m[0]);
   providesCache.set(filePath, matches);
   return matches;
@@ -135,8 +116,6 @@ const _getFileProvides = async (filePath) => {
 
 const _getParentFiles = async (componentName) => {
   if (parentsCache.has(componentName)) return parentsCache.get(componentName);
-
-  // Identify all .vue files import this component
   const found = (
     await Promise.all(
       vueFilesList.map(async (filePath) => {
@@ -145,19 +124,16 @@ const _getParentFiles = async (componentName) => {
       })
     )
   ).filter(Boolean);
-
   parentsCache.set(componentName, found);
   return found;
 };
 
 const _exploreParentsDFS = async (compName, visitedFiles, parentsWithProvides) => {
   const parentFiles = await _getParentFiles(compName);
-
   await Promise.all(
     parentFiles.map(async (filePath) => {
       if (visitedFiles.has(filePath)) return;
       visitedFiles.add(filePath);
-
       const provides = await _getFileProvides(filePath);
       if (provides.length > 0) {
         parentsWithProvides.push({
@@ -166,7 +142,6 @@ const _exploreParentsDFS = async (compName, visitedFiles, parentsWithProvides) =
           provides,
         });
       }
-
       const nextComp = path.basename(filePath, ".vue");
       await _exploreParentsDFS(nextComp, visitedFiles, parentsWithProvides);
     })
@@ -180,13 +155,9 @@ const _findAncestorsThatProvide = async (componentName) => {
   return parentsWithProvides;
 };
 
-/**
- * Cache Invalidation and Removal
- */
 const invalidateFileCaches = (filePath) => {
   fileContentCache.delete(filePath);
   providesCache.delete(filePath);
-
   const name = path.basename(filePath, ".vue");
   parentsCache.delete(name);
 };
@@ -198,29 +169,16 @@ const removeFileFromCaches = (filePath) => {
   });
 };
 
-/**
- * Gather all .vue files in the workspace
- */
 const getAllVueFiles = async () =>
-  vscode.workspace
-    .findFiles("**/*.vue", "**/node_modules/**")
-    .then((uris) => uris.map((u) => u.fsPath));
+  vscode.workspace.findFiles("**/*.vue", "**/node_modules/**").then((uris) => uris.map((u) => u.fsPath));
 
-/**
- * Decoration / Provide Seeker
- */
 const handleProvideSeeker = async (document) => {
   if (!document.fileName.endsWith(".vue")) return;
-
   const componentName = path.basename(document.fileName, ".vue");
   const parents = await _findAncestorsThatProvide(componentName);
-
   if (!parents.length) return;
-
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.fileName !== document.fileName) return;
-
-  // Decorate line 1 (index 0) if ancestors provide something
   const deco = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
     after: {
@@ -229,7 +187,6 @@ const handleProvideSeeker = async (document) => {
       fontWeight: "semibold",
     },
   });
-
   editor.setDecorations(deco, [
     {
       range: new vscode.Range(0, 0, 0, 0),
@@ -238,41 +195,31 @@ const handleProvideSeeker = async (document) => {
   ]);
 };
 
-/**
- * VSCode Extension Entry
- */
 const activate = async (context) => {
   vueFilesList = await getAllVueFiles();
-  // Setup a file system watcher for .vue files
   const watcher = vscode.workspace.createFileSystemWatcher("**/*.vue", false, false, false);
-
   watcher.onDidCreate((uri) => {
     if (!vueFilesList.includes(uri.fsPath)) {
       vueFilesList.push(uri.fsPath);
     }
     invalidateFileCaches(uri.fsPath);
   });
-
   watcher.onDidDelete((uri) => {
     removeFileFromCaches(uri.fsPath);
     vueFilesList = vueFilesList.filter((p) => p !== uri.fsPath);
   });
-
   watcher.onDidChange((uri) => {
     invalidateFileCaches(uri.fsPath);
   });
-
   const { activeTextEditor } = vscode.window;
   if (activeTextEditor?.document.languageId === "vue") {
     handleProvideSeeker(activeTextEditor.document);
   }
-
   vscode.workspace.onDidOpenTextDocument((doc) => {
     if (doc.languageId === "vue") {
       handleProvideSeeker(doc);
     }
   });
-
   vscode.window.onDidChangeActiveTextEditor((editor) => {
     if (editor?.document.languageId === "vue") {
       handleProvideSeeker(editor.document);
