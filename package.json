@@ -1,6 +1,6 @@
 {
   "name": "provide-seeker-vue",
-  "displayName": "provide-seeker-vue",
+  "displayName": "Provide seeker vue",
   "description": "Recursively checks parents to list provides, to see what is available to inject",
   "version": "1.0.73",
   "publisher": "ozJSey",
@@ -13,7 +13,6 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:provide-seeker-vue",
     "onLanguage:vue"
   ],
   "main": "./extension.js",
