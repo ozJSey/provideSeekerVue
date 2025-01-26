@@ -1,4 +1,4 @@
-# Vue Provide Extension
+# Vue Provide-Inject Extension
 
 ![Extension Icon](assets/icon.png)
 
@@ -30,14 +30,10 @@ The extension is aiming to fix a real problem of mine, missing parent provide(s)
 
 1. Clone the repository:
    ```shell
-   git clone <repository-url>
+   git clone https://github.com/ozJSey/provideSeekerVue
    ```
 2. Open the cloned folder in VSCode.
-3. Install dependencies:
-   ```shell
-npm install
-   ```
-4. Run the extension:
+3. Run the extension:
    - Press `F5` in VSCode to launch the Extension Development Host.
 
 ---
