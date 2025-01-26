@@ -2,11 +2,13 @@
   "name": "provide-seeker-vue",
   "displayName": "provide-seeker-vue",
   "description": "Recursively checks parents to list provides, to see what is available to inject",
-  "version": "1.0.71",
+  "version": "1.0.73",
+  "publisher": "ozJSey",
   "engines": {
     "vscode": "^1.25.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
   "activationEvents": [
@@ -31,5 +33,6 @@
     "eslint": "^9.16.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1"
-  }
+  },
+  "icon": "assets/icon.png"
 }
