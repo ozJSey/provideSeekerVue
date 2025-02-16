@@ -2,7 +2,7 @@
   "name": "vue-provide-seeker",
   "displayName": "Vue provide seeker",
   "description": "Recursively checks parents to list provides, to see what is available to inject",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "publisher": "ozJSey",
   "engines": {
     "vscode": "^1.25.0"
