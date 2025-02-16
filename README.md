@@ -6,6 +6,8 @@ This Visual Studio Code (VSCode) extension enhances your workflow by allowing yo
 
 The extension is aiming to fix a real problem of mine, missing parent provide(s).
 
+#### Limitation: The provides from node_modules will be ignored for performance. 
+
 ---
 
 ## Features
