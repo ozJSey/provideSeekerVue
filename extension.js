@@ -3,22 +3,25 @@ const path = require("path");
 const fs = require("fs");
 
 const RX_VUE_SCRIPT_BLOCK = /<script[^>]*>([\s\S]*?)<\/script>/g;
-const RX_IMPORT_STATEMENTS = /import\s+(\{?\s*[\w,\s]+\}?)\s+from\s+['"][^'"]+['"]/g;
+const RX_IMPORT_STATEMENTS =
+  /import\s+(\{?\s*[\w,\s]+\}?)\s+from\s+['"][^'"]+['"]/g;
 const RX_PROVIDE_CAPTURE = /provide\s*\(\s*([\s\S]*?)\s*\)/g;
 const RX_PROVIDE_BLOCK = /provide\s*\(\s*[\s\S]*?\s*\)/g;
-const RX_OBJECT_PAIRS = /(['"]?[\w]+['"]?)\s*:\s*(['"]?[\w\s]+['"]?)|(['"]?[\w]+['"]?)(?=\s*[},])/g;
+const RX_OBJECT_PAIRS =
+  /(['"]?[\w]+['"]?)\s*:\s*(['"]?[\w\s]+['"]?)|(['"]?[\w]+['"]?)(?=\s*[},])/g;
 
 const fileContentCache = new Map();
 const parentsCache = new Map();
 const providesCache = new Map();
-const activeDecorations = new Map(); 
 let vueFilesList = [];
 
 const _stripQuotes = (s = "") => s.replace(/^['"]|['"]$/g, "");
 
 const _readFile = (filePath) =>
   new Promise((resolve, reject) => {
-    fs.readFile(filePath, "utf8", (err, data) => (err ? reject(err) : resolve(data)));
+    fs.readFile(filePath, "utf8", (err, data) =>
+      err ? reject(err) : resolve(data)
+    );
   });
 
 const _extractScriptContent = (fileContent = "") => {
@@ -75,7 +78,9 @@ const _extractProvideContent = (str = "") => {
     }
     return _formatSingleProvideKV(inner);
   });
-  return results.length ? results.join("\n\n") : "- *(Non-valid provide syntax found)*";
+  return results.length
+    ? results.join("\n\n")
+    : "- *(Non-valid provide syntax found)*";
 };
 
 const _generateHoverContent = (parents) => {
@@ -83,7 +88,9 @@ const _generateHoverContent = (parents) => {
     "**Ancestors provide values 💉:**\n",
     ...parents.map(({ provides, name, source }) => {
       const parsed = provides.map(_extractProvideContent).join("\n\n");
-      return `**Provides:**\n${parsed || "(no values)"}\n\n${name}\n*(at ${source})*`;
+      return `**Provides:**\n${
+        parsed || "(no values)"
+      }\n\n${name}\n*(at ${source})*`;
     }),
   ];
   const md = new vscode.MarkdownString(lines.join("\n\n---\n\n"));
@@ -121,7 +128,9 @@ const _getParentFiles = async (componentName) => {
     await Promise.all(
       vueFilesList.map(async (filePath) => {
         const content = await _getFileContent(filePath);
-        return _doesFileImportComponent(content, componentName) ? filePath : null;
+        return _doesFileImportComponent(content, componentName)
+          ? filePath
+          : null;
       })
     )
   ).filter(Boolean);
@@ -129,7 +138,11 @@ const _getParentFiles = async (componentName) => {
   return found;
 };
 
-const _exploreParentsDFS = async (compName, visitedFiles, parentsWithProvides) => {
+const _exploreParentsDFS = async (
+  compName,
+  visitedFiles,
+  parentsWithProvides
+) => {
   const parentFiles = await _getParentFiles(compName);
   await Promise.all(
     parentFiles.map(async (filePath) => {
@@ -161,42 +174,30 @@ const invalidateFileCaches = (filePath) => {
   providesCache.delete(filePath);
   const name = path.basename(filePath, ".vue");
   parentsCache.delete(name);
-  
-  
-  if (activeDecorations.has(filePath)) {
-    const decoration = activeDecorations.get(filePath);
-    decoration.dispose();
-    activeDecorations.delete(filePath);
-  }
 };
 
 const removeFileFromCaches = (filePath) => {
   invalidateFileCaches(filePath);
   parentsCache.forEach((filePaths, comp) => {
-    parentsCache.set(comp, filePaths.filter((p) => p !== filePath));
+    parentsCache.set(
+      comp,
+      filePaths.filter((p) => p !== filePath)
+    );
   });
 };
 
 const getAllVueFiles = async () =>
-  vscode.workspace.findFiles("**/*.vue", "**/node_modules/**").then((uris) => uris.map((u) => u.fsPath));
+  vscode.workspace
+    .findFiles("**/*.vue", "**/node_modules/**")
+    .then((uris) => uris.map((u) => u.fsPath));
 
 const handleProvideSeeker = async (document) => {
   if (!document.fileName.endsWith(".vue")) return;
-  
-  const filePath = document.fileName;
-  
-  
-  if (activeDecorations.has(filePath)) {
-    return; 
-  }
-  
-  const componentName = path.basename(filePath, ".vue");
+  const componentName = path.basename(document.fileName, ".vue");
   const parents = await _findAncestorsThatProvide(componentName);
   if (!parents.length) return;
-  
   const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document.fileName !== filePath) return;
-  
+  if (!editor || editor.document.fileName !== document.fileName) return;
   const deco = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
     after: {
@@ -205,21 +206,22 @@ const handleProvideSeeker = async (document) => {
       fontWeight: "semibold",
     },
   });
-  
   editor.setDecorations(deco, [
     {
       range: new vscode.Range(0, 0, 0, 0),
       hoverMessage: _generateHoverContent(parents),
     },
   ]);
-  
-  
-  activeDecorations.set(filePath, deco);
 };
 
 const activate = async (context) => {
   vueFilesList = await getAllVueFiles();
-  const watcher = vscode.workspace.createFileSystemWatcher("**/*.vue", false, false, false);
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    "**/*.vue",
+    false,
+    false,
+    false
+  );
   const { activeTextEditor } = vscode.window;
   if (activeTextEditor?.document.languageId === "vue") {
     handleProvideSeeker(activeTextEditor.document);
@@ -238,36 +240,16 @@ const activate = async (context) => {
   watcher.onDidChange((uri) => {
     invalidateFileCaches(uri.fsPath);
   });
-  
-  vscode.window.onDidChangeVisibleTextEditors((editors) => {
-    
-    const uniqueVueFiles = new Set();
-    
-    editors.forEach(editor => {
-      if (editor?.document.languageId === 'vue') {
-        uniqueVueFiles.add(editor.document.uri.fsPath);
-      }
-    });
-    
-    
-    uniqueVueFiles.forEach(filePath => {
-      invalidateFileCaches(filePath);
-      
-      const editor = editors.find(e => e?.document.uri.fsPath === filePath);
-      if (editor) {
-        handleProvideSeeker(editor.document);
-      }
-    });
+
+  vscode.window.onDidChangeActiveTextEditor((editor) => {
+    if (editor?.document.languageId === "vue") {
+      invalidateFileCaches(editor.document.uri.fsPath);
+      handleProvideSeeker(editor.document);
+    }
   });
 };
 
-const deactivate = () => {
-  
-  activeDecorations.forEach((decoration) => {
-    decoration.dispose();
-  });
-  activeDecorations.clear();
-};
+const deactivate = () => {};
 
 module.exports = {
   activate,
