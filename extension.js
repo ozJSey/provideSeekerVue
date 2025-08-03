@@ -11,6 +11,7 @@ const RX_OBJECT_PAIRS = /(['"]?[\w]+['"]?)\s*:\s*(['"]?[\w\s]+['"]?)|(['"]?[\w]+
 const fileContentCache = new Map();
 const parentsCache = new Map();
 const providesCache = new Map();
+const activeDecorations = new Map(); 
 let vueFilesList = [];
 
 const _stripQuotes = (s = "") => s.replace(/^['"]|['"]$/g, "");
@@ -160,6 +161,13 @@ const invalidateFileCaches = (filePath) => {
   providesCache.delete(filePath);
   const name = path.basename(filePath, ".vue");
   parentsCache.delete(name);
+  
+  
+  if (activeDecorations.has(filePath)) {
+    const decoration = activeDecorations.get(filePath);
+    decoration.dispose();
+    activeDecorations.delete(filePath);
+  }
 };
 
 const removeFileFromCaches = (filePath) => {
@@ -174,11 +182,21 @@ const getAllVueFiles = async () =>
 
 const handleProvideSeeker = async (document) => {
   if (!document.fileName.endsWith(".vue")) return;
-  const componentName = path.basename(document.fileName, ".vue");
+  
+  const filePath = document.fileName;
+  
+  
+  if (activeDecorations.has(filePath)) {
+    return; 
+  }
+  
+  const componentName = path.basename(filePath, ".vue");
   const parents = await _findAncestorsThatProvide(componentName);
   if (!parents.length) return;
+  
   const editor = vscode.window.activeTextEditor;
-  if (!editor || editor.document.fileName !== document.fileName) return;
+  if (!editor || editor.document.fileName !== filePath) return;
+  
   const deco = vscode.window.createTextEditorDecorationType({
     isWholeLine: true,
     after: {
@@ -187,12 +205,16 @@ const handleProvideSeeker = async (document) => {
       fontWeight: "semibold",
     },
   });
+  
   editor.setDecorations(deco, [
     {
       range: new vscode.Range(0, 0, 0, 0),
       hoverMessage: _generateHoverContent(parents),
     },
   ]);
+  
+  
+  activeDecorations.set(filePath, deco);
 };
 
 const activate = async (context) => {
@@ -219,20 +241,33 @@ const activate = async (context) => {
   
   vscode.window.onDidChangeVisibleTextEditors((editors) => {
     
+    const uniqueVueFiles = new Set();
+    
     editors.forEach(editor => {
       if (editor?.document.languageId === 'vue') {
-        const filePath = editor.document.uri.fsPath;
+        uniqueVueFiles.add(editor.document.uri.fsPath);
+      }
+    });
     
-        invalidateFileCaches(filePath);
+    
+    uniqueVueFiles.forEach(filePath => {
+      invalidateFileCaches(filePath);
+      
+      const editor = editors.find(e => e?.document.uri.fsPath === filePath);
+      if (editor) {
         handleProvideSeeker(editor.document);
       }
-    })
-  
-    
+    });
   });
 };
 
-const deactivate = () => {};
+const deactivate = () => {
+  
+  activeDecorations.forEach((decoration) => {
+    decoration.dispose();
+  });
+  activeDecorations.clear();
+};
 
 module.exports = {
   activate,
